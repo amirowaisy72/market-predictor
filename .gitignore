@@ -1,0 +1,9 @@
+venv/
+engine/data/*
+!engine/data/.gitkeep
+engine/models/*
+!engine/models/.gitkeep
+node_modules/
+.next/
+__pycache__/
+.env

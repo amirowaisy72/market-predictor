@@ -1,0 +1,12 @@
+pandas
+polars
+pyarrow
+duckdb
+httpx
+websockets
+pyyaml
+tqdm
+lightgbm
+scikit-learn
+fastapi
+uvicorn
