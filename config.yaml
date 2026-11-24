@@ -1,0 +1,21 @@
+exchange: binance
+history_years: 4
+candle_interval: 5m
+prediction_horizon_minutes: 60
+
+coins:
+  - { name: BTC,  spot: BTCUSDT,  futures: BTCUSDT }
+  - { name: ETH,  spot: ETHUSDT,  futures: ETHUSDT }
+  - { name: BNB,  spot: BNBUSDT,  futures: BNBUSDT }
+  - { name: SOL,  spot: SOLUSDT,  futures: SOLUSDT }
+  - { name: XRP,  spot: XRPUSDT,  futures: XRPUSDT }
+  - { name: DOGE, spot: DOGEUSDT, futures: DOGEUSDT }
+  - { name: ADA,  spot: ADAUSDT,  futures: ADAUSDT }
+  - { name: AVAX, spot: AVAXUSDT, futures: AVAXUSDT }
+  - { name: LINK, spot: LINKUSDT, futures: LINKUSDT }
+  - { name: LTC,  spot: LTCUSDT,  futures: LTCUSDT }
+  - { name: PEPE, spot: PEPEUSDT, futures: 1000PEPEUSDT }
+  - { name: SHIB, spot: SHIBUSDT, futures: 1000SHIBUSDT }
+
+signal:
+  trade_threshold: 0.60   # placeholder, will be tuned later
