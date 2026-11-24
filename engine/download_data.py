@@ -8,7 +8,8 @@ Downloads, for every coin in config.yaml:
 
 Monthly zip files are used for full past months, daily zip files for the
 current month. Raw zips are cached in engine/data/raw/ and are skipped on
-re-runs, so the script can be stopped and restarted safely.
+re-runs, so the script can be stopped and restarted safely. Downloads run
+in parallel, 16 files at a time (ThreadPoolExecutor).
 
 Usage (Windows):
     venv\\Scripts\\python engine\\download_data.py              # everything
@@ -23,6 +24,7 @@ import io
 import sys
 import time
 import zipfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -32,6 +34,7 @@ import yaml
 from tqdm import tqdm
 
 BASE_URL = "https://data.binance.vision"
+MAX_WORKERS = 16  # files downloaded in parallel
 ROOT = Path(__file__).resolve().parent.parent
 ENGINE_DIR = Path(__file__).resolve().parent
 DATA_DIR = ENGINE_DIR / "data"
@@ -278,18 +281,36 @@ def main() -> int:
     print(f"Period: {start} to {today - timedelta(days=1)}")
 
     frames: dict[tuple[str, str], list[pd.DataFrame]] = {}
-    with httpx.Client() as client:
-        all_tasks: list[dict] = []
-        for coin in coins:
-            all_tasks.extend(build_tasks(coin, start, today))
-        for task in tqdm(all_tasks, desc="Downloading"):
-            if not download(task["url"], task["raw"], client):
-                continue
-            df = read_zip_csv(task["raw"], DEFAULT_COLUMNS[task["kind"]])
-            if df is None:
-                continue
-            df = NORMALISERS[task["kind"]](df)
-            frames.setdefault((task["name"], task["kind"]), []).append(df)
+    all_tasks: list[dict] = []
+    for coin in coins:
+        all_tasks.extend(build_tasks(coin, start, today))
+
+    # Download the raw zips in parallel, MAX_WORKERS files at a time.
+    # download() itself is unchanged: files that already exist are skipped
+    # and failed downloads are retried 3 times. httpx.Client is thread-safe,
+    # so a single client with a larger connection pool is shared.
+    downloaded: list[bool] = [False] * len(all_tasks)
+    limits = httpx.Limits(max_connections=MAX_WORKERS * 2,
+                          max_keepalive_connections=MAX_WORKERS)
+    with httpx.Client(limits=limits) as client:
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            future_to_idx = {
+                executor.submit(download, task["url"], task["raw"], client): i
+                for i, task in enumerate(all_tasks)
+            }
+            for future in tqdm(as_completed(future_to_idx),
+                               total=len(all_tasks), desc="Downloading"):
+                downloaded[future_to_idx[future]] = future.result()
+
+    # Parse the downloaded zips in the original (sorted) order.
+    for task, ok in zip(all_tasks, downloaded):
+        if not ok:
+            continue
+        df = read_zip_csv(task["raw"], DEFAULT_COLUMNS[task["kind"]])
+        if df is None:
+            continue
+        df = NORMALISERS[task["kind"]](df)
+        frames.setdefault((task["name"], task["kind"]), []).append(df)
 
     for (name, kind), parts in sorted(frames.items()):
         df = pd.concat(parts, ignore_index=True)
